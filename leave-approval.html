@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Leave Approval – Attendance Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🎓 <span>AttendTrack</span></div>
+    <nav>
+      <a href="dashboard.html"><i>📊</i> <span>Dashboard</span></a>
+      <a href="students.html"><i>👥</i> <span>Students</span></a>
+      <a href="mark-attendance.html"><i>✅</i> <span>Mark Attendance</span></a>
+      <a href="reports.html"><i>📋</i> <span>Reports</span></a>
+      <a href="leave-approval.html"><i>📝</i> <span>Leave Approval</span></a>
+      <a href="parent-notify.html"><i>📨</i> <span>Parent Notify</span></a>
+      <a href="index.html" onclick="localStorage.removeItem('role');localStorage.removeItem('loggedId');"><i>🚪</i> <span>Logout</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1>Leave / Permission Approval</h1>
+      <button class="btn btn-outline btn-sm" onclick="renderPage()">🔄 Refresh</button>
+    </div>
+
+    <div class="cards" style="margin-bottom:20px;">
+      <div class="card orange"><div class="label">Pending</div><div class="value" id="cPending">—</div></div>
+      <div class="card green"><div class="label">Approved</div><div class="value" id="cApproved">—</div></div>
+      <div class="card red"><div class="label">Rejected</div><div class="value" id="cRejected">—</div></div>
+    </div>
+
+    <div class="table-box" style="margin-bottom:20px;">
+      <h2 style="margin-bottom:14px;">⏳ Pending Requests</h2>
+      <table>
+        <thead>
+          <tr><th>Roll No</th><th>Student</th><th>Group</th><th>Type</th><th>Reason</th><th>Date</th><th>Action</th></tr>
+        </thead>
+        <tbody id="pendingTable"></tbody>
+      </table>
+      <div id="noPending" style="text-align:center;padding:20px;color:#aaa;font-size:13px;">No pending requests</div>
+    </div>
+
+    <div class="table-box">
+      <h2 style="margin-bottom:14px;">📋 All Requests</h2>
+      <table>
+        <thead>
+          <tr><th>Roll No</th><th>Student</th><th>Group</th><th>Type</th><th>Reason</th><th>Date</th><th>Status</th></tr>
+        </thead>
+        <tbody id="allTable"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+<script>
+function renderPage() {
+  const all      = getLeaveRequests();
+  const pending  = all.filter(r => r.status === "pending");
+  const approved = all.filter(r => r.status === "approved");
+  const rejected = all.filter(r => r.status === "rejected");
+
+  document.getElementById("cPending").textContent  = pending.length;
+  document.getElementById("cApproved").textContent = approved.length;
+  document.getElementById("cRejected").textContent = rejected.length;
+
+  const pt = document.getElementById("pendingTable");
+  pt.innerHTML = "";
+  document.getElementById("noPending").style.display = pending.length ? "none" : "block";
+  pending.forEach(r => {
+    pt.innerHTML += `<tr>
+      <td><strong>${r.roll}</strong></td>
+      <td>${r.name}</td>
+      <td><span class="badge ok" style="font-size:11px;">${r.group}</span></td>
+      <td>${r.type}</td>
+      <td style="font-size:13px;max-width:180px;">${r.reason}</td>
+      <td>${r.date}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-success btn-sm" onclick="decide(${r.id},'approved')">✓ Approve</button>
+          <button class="btn btn-danger btn-sm"  onclick="decide(${r.id},'rejected')">✗ Reject</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  const at = document.getElementById("allTable");
+  at.innerHTML = "";
+  all.slice().reverse().forEach(r => {
+    at.innerHTML += `<tr>
+      <td><strong>${r.roll}</strong></td>
+      <td>${r.name}</td>
+      <td>${r.group}</td>
+      <td>${r.type}</td>
+      <td style="font-size:13px;">${r.reason}</td>
+      <td>${r.date}</td>
+      <td><span class="badge ${r.status==='approved'?'ok':r.status==='rejected'?'low':'late'}">${r.status}</span></td>
+    </tr>`;
+  });
+}
+
+function decide(id, status) {
+  const req = updateLeaveStatus(id, status);
+  if (!req) return;
+  if (status === "approved") {
+    const s = students.find(x => x.roll === req.roll);
+    if (s) {
+      s.leave   += 1;
+      s.present += 1;
+      if (s.present + s.absent > s.total) s.total = s.present + s.absent;
+      showToast("✓ Approved! Attendance updated for " + s.name + " (" + s.roll + ")");
+    }
+  } else {
+    showToast("✗ Rejected request for " + req.name);
+  }
+  renderPage();
+}
+
+document.addEventListener("DOMContentLoaded", renderPage);
+</script>
+</body>
+</html>

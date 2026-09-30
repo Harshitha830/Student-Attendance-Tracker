@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Dashboard – Attendance Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🎓 <span>AttendTrack</span></div>
+    <nav>
+      <a href="student-dashboard.html"><i>📊</i> <span>My Dashboard</span></a>
+      <a href="student-report.html"><i>📋</i> <span>My Report</span></a>
+      <a href="student-leave.html"><i>📝</i> <span>Leave Request</span></a>
+      <a href="index.html" onclick="localStorage.removeItem('role');localStorage.removeItem('loggedId');"><i>🚪</i> <span>Logout</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1>My Attendance</h1>
+      <div class="user">
+        <span id="welcomeMsg" style="font-size:13px;color:#555;"></span>
+        <div class="avatar" id="avatarLetter">S</div>
+      </div>
+    </div>
+
+    <!-- STAT CARDS -->
+    <div class="cards">
+      <div class="card blue"><div class="label">Total Days</div><div class="value" id="cTotal">—</div></div>
+      <div class="card green"><div class="label">Present</div><div class="value" id="cPresent">—</div></div>
+      <div class="card red"><div class="label">Absent</div><div class="value" id="cAbsent">—</div></div>
+      <div class="card orange"><div class="label">Attendance %</div><div class="value" id="cPct">—</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+      <!-- Doughnut -->
+      <div class="chart-box">
+        <h2>Attendance Overview</h2>
+        <canvas id="myPie" height="200"></canvas>
+      </div>
+      <!-- Subject wise -->
+      <div class="chart-box">
+        <h2>Subject-wise Attendance</h2>
+        <canvas id="myBar" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- ELIGIBILITY -->
+    <div id="eligBox" style="margin-bottom:20px;"></div>
+
+    <!-- SUBJECT TABLE (view only) -->
+    <div class="table-box">
+      <h2>Subject-wise Breakdown</h2>
+      <table>
+        <thead><tr><th>Subject</th><th>Present</th><th>Total</th><th>%</th><th>Status</th></tr></thead>
+        <tbody id="subTable"></tbody>
+      </table>
+    </div>
+
+    <!-- LEAVE STATUS -->
+    <div class="table-box">
+      <h2>My Leave Requests</h2>
+      <table>
+        <thead><tr><th>Type</th><th>Reason</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody id="myLeaveTable"></tbody>
+      </table>
+      <div id="noLeave" style="text-align:center;padding:16px;color:#aaa;font-size:13px;">No leave requests yet</div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+<script>
+const subjects = ["Data Structures","DBMS","OS","Networks","Software Engg"];
+const subjectData = [
+  [20,22,19,21,20],[16,18,15,17,16],[24,22,25,23,24],[26,25,26,24,26],
+  [22,20,23,21,22],[19,18,20,19,19],[18,17,19,18,18],[26,26,26,25,26],
+];
+
+document.addEventListener("DOMContentLoaded", () => {
+  const id = getLoggedId();
+  const s = students.find(x => x.id === id);
+  if (!s) { window.location.href = "index.html"; return; }
+
+  document.getElementById("welcomeMsg").textContent = "Welcome, " + s.name;
+  document.getElementById("avatarLetter").textContent = s.name[0];
+
+  const pct = getPct(s);
+  document.getElementById("cTotal").textContent = s.total;
+  document.getElementById("cPresent").textContent = s.present;
+  document.getElementById("cAbsent").textContent = s.absent;
+  document.getElementById("cPct").textContent = pct + "%";
+
+  // eligibility
+  const eb = document.getElementById("eligBox");
+  if (pct < 75) eb.innerHTML = `<div class="alert-box danger">⚠ Your attendance is <strong>${pct}%</strong> — below 75%. You may not be eligible for exams. Please contact your teacher.</div>`;
+  else if (pct < 85) eb.innerHTML = `<div class="alert-box">📌 Your attendance is <strong>${pct}%</strong>. Try to maintain above 85% for exam eligibility.</div>`;
+
+  // pie
+  new Chart(document.getElementById("myPie"), {
+    type: "doughnut",
+    data: { labels: ["Present","Absent","Leave"],
+      datasets: [{ data: [s.present, s.absent, s.leave], backgroundColor: ["#2e7d32","#c62828","#f57f17"], borderWidth:0 }] },
+    options: { plugins: { legend: { position:"bottom" } }, cutout:"65%" }
+  });
+
+  // subject table + bar
+  const sd = subjectData[s.id - 1];
+  const tbody = document.getElementById("subTable");
+  const spcts = [];
+  subjects.forEach((sub, i) => {
+    const sp = sd[i]; const st = s.total;
+    const spct = Math.round((sp / st) * 100);
+    spcts.push(spct);
+    tbody.innerHTML += `<tr>
+      <td>${sub}</td><td>${sp}</td><td>${st}</td>
+      <td>${spct}%</td>
+      <td><span class="badge ${spct<75?'low':'ok'}">${spct<75?'⚠ Low':'✓ Good'}</span></td>
+    </tr>`;
+  });
+
+  new Chart(document.getElementById("myBar"), {
+    type: "bar",
+    data: { labels: subjects,
+      datasets: [{ data: spcts, backgroundColor: spcts.map(p => p<75?"#c62828":"#1e3a5f"), borderRadius:6 }] },
+    options: { plugins:{ legend:{display:false} }, scales:{ y:{min:0,max:100} } }
+  });
+
+  // my leave requests — always read fresh from localStorage
+  const myLeaves = getLeaveRequests().filter(r => r.studentId === id);
+  const lt = document.getElementById("myLeaveTable");
+  document.getElementById("noLeave").style.display = myLeaves.length ? "none" : "block";
+  myLeaves.slice().reverse().forEach(r => {
+    lt.innerHTML += `<tr>
+      <td>${r.type}</td><td style="font-size:13px">${r.reason}</td><td>${r.date}</td>
+      <td><span class="badge ${r.status==='approved'?'ok':r.status==='rejected'?'low':'late'}">${r.status}</span></td>
+    </tr>`;
+  });
+});
+</script>
+</body>
+</html>

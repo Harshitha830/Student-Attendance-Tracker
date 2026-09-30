@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reports – Attendance Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🎓 <span>AttendTrack</span></div>
+    <nav>
+      <a href="dashboard.html"><i>📊</i> <span>Dashboard</span></a>
+      <a href="students.html"><i>👥</i> <span>Students</span></a>
+      <a href="mark-attendance.html"><i>✅</i> <span>Mark Attendance</span></a>
+      <a href="reports.html"><i>📋</i> <span>Reports</span></a>
+      <a href="leave-approval.html"><i>📝</i> <span>Leave Approval</span></a>
+      <a href="parent-notify.html"><i>📨</i> <span>Parent Notify</span></a>
+      <a href="index.html" onclick="localStorage.clear()"><i>🚪</i> <span>Logout</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar"><h1>Attendance Reports</h1></div>
+
+    <div class="toolbar" style="margin-bottom:20px;">
+      <select id="selStudent">
+        <option value="">Select Student</option>
+      </select>
+      <select id="selMonth">
+        <option>June 2025</option><option>May 2025</option><option>April 2025</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="renderReport()">Generate Report</button>
+    </div>
+
+    <div id="reportArea" style="display:none;">
+      <div class="report-card" id="reportCard">
+        <div class="rc-header">
+          <div>
+            <h3 id="rcName">—</h3>
+            <div class="rc-meta" id="rcMeta">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:13px;color:#888;">Month</div>
+            <div style="font-weight:700;color:#1e3a5f;" id="rcMonth">—</div>
+          </div>
+        </div>
+        <div class="rc-stats">
+          <div class="rc-stat"><div class="n" id="rcTotal">—</div><div class="l">Working Days</div></div>
+          <div class="rc-stat"><div class="n" style="color:#2e7d32" id="rcPresent">—</div><div class="l">Present</div></div>
+          <div class="rc-stat"><div class="n" style="color:#c62828" id="rcAbsent">—</div><div class="l">Absent</div></div>
+          <div class="rc-stat"><div class="n" id="rcPct">—</div><div class="l">Attendance %</div></div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+          <thead><tr style="background:#f0f4f8;"><th style="padding:8px">Subject</th><th style="padding:8px">Present</th><th style="padding:8px">Total</th><th style="padding:8px">%</th></tr></thead>
+          <tbody id="subjectBody"></tbody>
+        </table>
+        <div id="alertBox"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+          <button class="btn btn-success btn-sm" onclick="sendToParent()">📨 Send to Parent</button>
+        </div>
+      </div>
+      <div class="chart-box" style="margin-top:20px;max-width:560px;">
+        <h2>Subject-wise Attendance</h2>
+        <canvas id="barChart" height="180"></canvas>
+      </div>
+    </div>
+
+    <div class="table-box" style="margin-top:24px;">
+      <h2>All Students – Monthly Summary</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Roll</th><th>Group</th><th>Present</th><th>Absent</th><th>%</th><th>Status</th></tr></thead>
+        <tbody id="allTable"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+<script>
+const subjects = ["Data Structures","DBMS","OS","Networks","Software Engg"];
+const subjectData = [
+  [20,22,19,21,20],[16,18,15,17,16],[24,22,25,23,24],[26,25,26,24,26],
+  [22,20,23,21,22],[19,18,20,19,19],[18,17,19,18,18],[26,26,26,25,26],
+];
+let barInst = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  const sel = document.getElementById("selStudent");
+  students.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.name} (${s.roll})</option>`);
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("id")) { sel.value = params.get("id"); renderReport(); }
+
+  const tbody = document.getElementById("allTable");
+  students.forEach(s => {
+    const pct = getPct(s);
+    tbody.innerHTML += `<tr>
+      <td>${s.name}</td><td>${s.roll}</td><td>${s.group}</td>
+      <td>${s.present}</td><td>${s.absent}</td><td>${pct}%</td>
+      <td><span class="badge ${pct<75?'low':'ok'}">${pct<75?'⚠ Low':'✓ Good'}</span></td>
+    </tr>`;
+  });
+});
+
+function renderReport() {
+  const id = parseInt(document.getElementById("selStudent").value);
+  if (!id) return;
+  const s = students.find(x => x.id === id);
+  const pct = getPct(s);
+  const month = document.getElementById("selMonth").value;
+
+  document.getElementById("rcName").textContent = s.name;
+  document.getElementById("rcMeta").textContent = `${s.roll} · Group: ${s.group} · Parent: ${s.parent}`;
+  document.getElementById("rcMonth").textContent = month;
+  document.getElementById("rcTotal").textContent = s.total;
+  document.getElementById("rcPresent").textContent = s.present;
+  document.getElementById("rcAbsent").textContent = s.absent;
+  document.getElementById("rcPct").textContent = pct + "%";
+
+  const sd = subjectData[s.id - 1];
+  const subBody = document.getElementById("subjectBody");
+  subBody.innerHTML = "";
+  const spcts = [];
+  subjects.forEach((sub, i) => {
+    const sp = sd[i], st = s.total;
+    const spct = Math.round((sp / st) * 100);
+    spcts.push(spct);
+    subBody.innerHTML += `<tr>
+      <td style="padding:8px">${sub}</td><td style="padding:8px">${sp}</td><td style="padding:8px">${st}</td>
+      <td style="padding:8px"><span class="badge ${spct<75?'low':'ok'}">${spct}%</span></td>
+    </tr>`;
+  });
+
+  document.getElementById("alertBox").innerHTML = pct < 75
+    ? `<div class="alert-box danger">⚠ Attendance below 75%. Student may not be eligible for exams.</div>`
+    : pct < 85 ? `<div class="alert-box">📌 Attendance between 75–85%. Encourage improvement.</div>` : "";
+
+  document.getElementById("reportArea").style.display = "block";
+
+  if (barInst) barInst.destroy();
+  barInst = new Chart(document.getElementById("barChart"), {
+    type:"bar",
+    data:{ labels:subjects,
+      datasets:[{ data:spcts, backgroundColor:spcts.map(p=>p<75?"#c62828":"#1e3a5f"), borderRadius:6 }] },
+    options:{ plugins:{legend:{display:false}}, scales:{y:{min:0,max:100}} }
+  });
+}
+
+function sendToParent() {
+  const id = parseInt(document.getElementById("selStudent").value);
+  if (!id) return;
+  const s = students.find(x => x.id === id);
+  showToast(`Report sent to ${s.parent} (${s.email}) ✓`);
+}
+</script>
+</body>
+</html>

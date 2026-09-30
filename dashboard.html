@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard – Attendance Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🎓 <span>AttendTrack</span></div>
+    <nav>
+      <a href="dashboard.html"><i>📊</i> <span>Dashboard</span></a>
+      <a href="students.html"><i>👥</i> <span>Students</span></a>
+      <a href="mark-attendance.html"><i>✅</i> <span>Mark Attendance</span></a>
+      <a href="reports.html"><i>📋</i> <span>Reports</span></a>
+      <a href="leave-approval.html"><i>📝</i> <span>Leave Approval</span></a>
+      <a href="parent-notify.html"><i>📨</i> <span>Parent Notify</span></a>
+      <a href="index.html" onclick="localStorage.clear()"><i>🚪</i> <span>Logout</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1>Dashboard</h1>
+      <div class="user">
+        <span style="font-size:13px;color:#555;">Welcome, Teacher</span>
+        <div class="avatar">T</div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card blue"><div class="label">Total Students</div><div class="value">8</div><div class="sub">3 CST groups</div></div>
+      <div class="card green"><div class="label">Present Today</div><div class="value" id="presentCount">—</div><div class="sub">marked today</div></div>
+      <div class="card red"><div class="label">Absent Today</div><div class="value" id="absentCount">—</div><div class="sub">follow up needed</div></div>
+      <div class="card orange"><div class="label">Low Attendance</div><div class="value" id="lowCount">—</div><div class="sub">below 75%</div></div>
+      <div class="card blue"><div class="label">Pending Leaves</div><div class="value" id="pendingCount">—</div><div class="sub"><a href="leave-approval.html" style="color:#1e3a5f;font-size:12px;">Review →</a></div></div>
+    </div>
+
+    <div class="charts">
+      <div class="chart-box">
+        <h2>Today's Attendance</h2>
+        <canvas id="pieChart" height="200"></canvas>
+      </div>
+      <div class="chart-box">
+        <h2>Monthly Trend</h2>
+        <canvas id="lineChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="table-box">
+      <h2>Student Attendance Overview</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Roll</th><th>Group</th><th>Present</th><th>Absent</th><th>%</th><th>Status</th></tr></thead>
+        <tbody id="dashTable"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("presentCount").textContent = students.filter(s => s.absent === 0).length;
+  document.getElementById("absentCount").textContent = students.filter(s => s.absent > 0).length;
+  document.getElementById("lowCount").textContent = students.filter(s => getPct(s) < 75).length;
+  document.getElementById("pendingCount").textContent = getLeaveRequests().filter(r => r.status === "pending").length;
+
+  const tbody = document.getElementById("dashTable");
+  students.forEach(s => {
+    const pct = getPct(s);
+    tbody.innerHTML += `<tr>
+      <td>${s.name}</td><td>${s.roll}</td><td>${s.group}</td>
+      <td>${s.present}</td><td>${s.absent}</td>
+      <td>
+        <div>${pct}%</div>
+        <div class="progress-wrap"><div class="progress-bar ${getBarClass(pct)}" style="width:${pct}%"></div></div>
+      </td>
+      <td><span class="badge ${pct<75?'low':'ok'}">${pct<75?'Low':'Good'}</span></td>
+    </tr>`;
+  });
+
+  const present = students.reduce((a,s)=>a+s.present,0);
+  const absent  = students.reduce((a,s)=>a+s.absent,0);
+  const leave   = students.reduce((a,s)=>a+s.leave,0);
+  new Chart(document.getElementById("pieChart"), {
+    type:"doughnut",
+    data:{ labels:["Present","Absent","Leave"],
+      datasets:[{ data:[present,absent,leave], backgroundColor:["#2e7d32","#c62828","#f57f17"], borderWidth:0 }] },
+    options:{ plugins:{legend:{position:"bottom"}}, cutout:"65%" }
+  });
+  new Chart(document.getElementById("lineChart"), {
+    type:"line",
+    data:{ labels:["Jan","Feb","Mar","Apr","May","Jun"],
+      datasets:[{ label:"Avg %", data:[88,82,79,85,90,87],
+        borderColor:"#1e3a5f", backgroundColor:"rgba(30,58,95,0.1)", tension:0.4, fill:true, pointBackgroundColor:"#1e3a5f" }] },
+    options:{ plugins:{legend:{display:false}}, scales:{y:{min:60,max:100}} }
+  });
+});
+</script>
+</body>
+</html>

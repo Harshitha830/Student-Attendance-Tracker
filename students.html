@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Students – Attendance Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🎓 <span>AttendTrack</span></div>
+    <nav>
+      <a href="dashboard.html"><i>📊</i> <span>Dashboard</span></a>
+      <a href="students.html"><i>👥</i> <span>Students</span></a>
+      <a href="mark-attendance.html"><i>✅</i> <span>Mark Attendance</span></a>
+      <a href="reports.html"><i>📋</i> <span>Reports</span></a>
+      <a href="leave-approval.html"><i>📝</i> <span>Leave Approval</span></a>
+      <a href="parent-notify.html"><i>📨</i> <span>Parent Notify</span></a>
+      <a href="index.html" onclick="localStorage.clear()"><i>🚪</i> <span>Logout</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1>Students</h1>
+      <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('show')">+ Add Student</button>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="search" placeholder="Search by name or roll..." oninput="renderTable()"/>
+      <select id="filterGroup" onchange="renderTable()">
+        <option value="">All Groups</option>
+        <option>CST-A</option><option>CST-B</option><option>CST-C</option>
+      </select>
+    </div>
+
+    <div class="table-box">
+      <table>
+        <thead>
+          <tr><th>Roll</th><th>Name</th><th>Group</th><th>Present</th><th>Absent</th><th>Attendance %</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody id="studentTable"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3>Add New Student</h3>
+    <div class="form-group"><label>Full Name</label><input type="text" id="newName" placeholder="Student name"/></div>
+    <div class="form-group"><label>Roll Number</label><input type="text" id="newRoll" placeholder="e.g. CST009"/></div>
+    <div class="form-group"><label>Group</label>
+      <select id="newGroup"><option>CST-A</option><option>CST-B</option><option>CST-C</option></select>
+    </div>
+    <div class="form-group"><label>Parent Email</label><input type="email" id="newEmail" placeholder="parent@email.com"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('addModal').classList.remove('show')">Cancel</button>
+      <button class="btn btn-primary" onclick="addStudent()">Add Student</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+<script>
+function renderTable() {
+  const q = document.getElementById("search").value.toLowerCase();
+  const grp = document.getElementById("filterGroup").value;
+  const tbody = document.getElementById("studentTable");
+  tbody.innerHTML = "";
+  students.filter(s =>
+    (!q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q)) &&
+    (!grp || s.group === grp)
+  ).forEach(s => {
+    const pct = getPct(s);
+    tbody.innerHTML += `<tr>
+      <td>${s.roll}</td><td><strong>${s.name}</strong></td><td>${s.group}</td>
+      <td>${s.present}</td><td>${s.absent}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span>${pct}%</span>
+          <div class="progress-wrap" style="flex:1"><div class="progress-bar ${getBarClass(pct)}" style="width:${pct}%"></div></div>
+        </div>
+      </td>
+      <td><span class="badge ${pct<75?'low':'ok'}">${pct<75?'⚠ Low':'✓ Good'}</span></td>
+      <td><a href="reports.html?id=${s.id}" class="btn btn-outline btn-sm">View Report</a></td>
+    </tr>`;
+  });
+}
+
+function addStudent() {
+  const name = document.getElementById("newName").value.trim();
+  const roll = document.getElementById("newRoll").value.trim();
+  if (!name || !roll) { showToast("Please fill all fields"); return; }
+  students.push({ id: students.length+1, name, roll, group: document.getElementById("newGroup").value,
+    present:0, absent:0, leave:0, total:0, parent:"", email: document.getElementById("newEmail").value, phone:"", password:"pass123" });
+  document.getElementById("addModal").classList.remove("show");
+  showToast("Student added successfully!");
+  renderTable();
+}
+
+document.addEventListener("DOMContentLoaded", renderTable);
+</script>
+</body>
+</html>

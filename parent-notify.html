@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Parent Notify – Attendance Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🎓 <span>AttendTrack</span></div>
+    <nav>
+      <a href="dashboard.html"><i>📊</i> <span>Dashboard</span></a>
+      <a href="students.html"><i>👥</i> <span>Students</span></a>
+      <a href="mark-attendance.html"><i>✅</i> <span>Mark Attendance</span></a>
+      <a href="reports.html"><i>📋</i> <span>Reports</span></a>
+      <a href="leave-approval.html"><i>📝</i> <span>Leave Approval</span></a>
+      <a href="parent-notify.html"><i>📨</i> <span>Parent Notify</span></a>
+      <a href="index.html" onclick="localStorage.clear()"><i>🚪</i> <span>Logout</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar"><h1>Parent Notification</h1></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <div class="notif-form">
+        <h2>📨 Send Monthly Report to Parent</h2>
+        <div class="form-group">
+          <label>Select Student</label>
+          <select id="notifStudent" onchange="updatePreview()"><option value="">-- Select --</option></select>
+        </div>
+        <div class="form-group">
+          <label>Month</label>
+          <select id="notifMonth" onchange="updatePreview()">
+            <option>June 2025</option><option>May 2025</option><option>April 2025</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Send Via</label>
+          <select id="notifMode">
+            <option value="email">📧 Email</option>
+            <option value="sms">📱 SMS</option>
+            <option value="whatsapp">💬 WhatsApp</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Parent Email</label>
+          <input type="email" id="parentEmail" readonly style="background:#f9f9f9;"/>
+        </div>
+        <div class="form-group">
+          <label>Parent Phone</label>
+          <input type="text" id="parentPhone" readonly style="background:#f9f9f9;"/>
+        </div>
+        <div id="msgPreview" class="msg-preview" style="display:none;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button class="btn btn-primary" onclick="sendNotif()">Send Now</button>
+          <button class="btn btn-outline" onclick="showToast('Monthly auto-send scheduled ✓')">📅 Schedule Monthly</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="table-box">
+          <h2>⚠ Low Attendance Alerts</h2>
+          <table>
+            <thead><tr><th>Student</th><th>Group</th><th>%</th><th>Action</th></tr></thead>
+            <tbody id="lowTable"></tbody>
+          </table>
+        </div>
+        <div class="table-box" style="margin-top:16px;">
+          <h2>📋 Notification Log</h2>
+          <table>
+            <thead><tr><th>Student</th><th>Sent To</th><th>Mode</th><th>Date</th></tr></thead>
+            <tbody id="logTable"></tbody>
+          </table>
+          <div id="emptyLog" style="text-align:center;padding:16px;color:#aaa;font-size:13px;">No notifications sent yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-box" style="margin-top:20px;">
+      <h2>All Parent Contacts</h2>
+      <table>
+        <thead><tr><th>Student</th><th>Roll</th><th>Group</th><th>Parent</th><th>Email</th><th>Phone</th><th>%</th><th>Action</th></tr></thead>
+        <tbody id="parentTable"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+<script>
+const log = [];
+
+document.addEventListener("DOMContentLoaded", () => {
+  const sel = document.getElementById("notifStudent");
+  students.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.name} (${s.roll})</option>`);
+
+  const lowTbody = document.getElementById("lowTable");
+  students.filter(s => getPct(s) < 75).forEach(s => {
+    lowTbody.innerHTML += `<tr>
+      <td><strong>${s.name}</strong></td><td>${s.group}</td>
+      <td><span class="badge low">${getPct(s)}%</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="quickSend(${s.id})">Alert</button></td>
+    </tr>`;
+  });
+
+  const pTbody = document.getElementById("parentTable");
+  students.forEach(s => {
+    const pct = getPct(s);
+    pTbody.innerHTML += `<tr>
+      <td>${s.name}</td><td>${s.roll}</td><td>${s.group}</td><td>${s.parent}</td>
+      <td>${s.email}</td><td>${s.phone}</td>
+      <td><span class="badge ${pct<75?'low':'ok'}">${pct}%</span></td>
+      <td><button class="btn btn-outline btn-sm" onclick="quickSend(${s.id})">Send</button></td>
+    </tr>`;
+  });
+});
+
+function updatePreview() {
+  const id = parseInt(document.getElementById("notifStudent").value);
+  if (!id) return;
+  const s = students.find(x => x.id === id);
+  const pct = getPct(s);
+  const month = document.getElementById("notifMonth").value;
+  document.getElementById("parentEmail").value = s.email;
+  document.getElementById("parentPhone").value = s.phone;
+  const preview = document.getElementById("msgPreview");
+  preview.style.display = "block";
+  preview.innerHTML = `<strong>Message Preview:</strong><br/><br/>
+Dear <strong>${s.parent}</strong>,<br/><br/>
+Attendance report for <strong>${s.name}</strong> – <strong>${month}</strong><br/><br/>
+📅 Working Days: <strong>${s.total}</strong> &nbsp;|&nbsp; ✅ Present: <strong>${s.present}</strong> &nbsp;|&nbsp; ❌ Absent: <strong>${s.absent}</strong><br/>
+📊 Attendance: <strong>${pct}%</strong><br/><br/>
+${pct < 75 ? '⚠ <strong style="color:#c62828">Below 75% – Exam eligibility at risk.</strong>' : '✓ Attendance is satisfactory.'}<br/><br/>
+Regards, School Administration`;
+}
+
+function sendNotif() {
+  const id = parseInt(document.getElementById("notifStudent").value);
+  if (!id) { showToast("Please select a student"); return; }
+  const s = students.find(x => x.id === id);
+  const mode = document.getElementById("notifMode").value;
+  log.push({ student: s.name, to: mode==="email"?s.email:s.phone, mode, date: new Date().toLocaleDateString() });
+  renderLog();
+  showToast(`Report sent to ${s.parent} via ${mode} ✓`);
+}
+
+function quickSend(id) {
+  const s = students.find(x => x.id === id);
+  log.push({ student: s.name, to: s.email, mode:"email", date: new Date().toLocaleDateString() });
+  renderLog();
+  showToast(`Alert sent to ${s.parent} ✓`);
+}
+
+function renderLog() {
+  const tbody = document.getElementById("logTable");
+  tbody.innerHTML = "";
+  document.getElementById("emptyLog").style.display = log.length ? "none" : "block";
+  log.slice().reverse().forEach(l => {
+    tbody.innerHTML += `<tr><td>${l.student}</td><td>${l.to}</td>
+      <td><span class="badge present">${l.mode}</span></td><td>${l.date}</td></tr>`;
+  });
+}
+</script>
+</body>
+</html>

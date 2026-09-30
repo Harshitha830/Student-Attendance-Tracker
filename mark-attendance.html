@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mark Attendance – Attendance Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .att-table { width:100%; border-collapse:collapse; font-size:14px; }
+    .att-table th { background:#1e3a5f; color:#fff; padding:11px 14px; text-align:left; font-size:13px; }
+    .att-table td { padding:11px 14px; border-bottom:1px solid #f0f4f8; vertical-align:middle; }
+    .att-table tr:last-child td { border-bottom:none; }
+    .att-table tr:hover td { background:#f8fafc; }
+    .radio-group { display:flex; gap:6px; }
+    .radio-group label { display:flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; cursor:pointer; font-size:13px; font-weight:600; border:2px solid transparent; transition:0.15s; }
+    .radio-group input[type=radio] { display:none; }
+    .radio-group input[type=radio]:checked + span { font-weight:700; }
+    .lbl-p { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
+    .lbl-a { background:#ffebee; color:#c62828; border-color:#ef9a9a; }
+    .lbl-pm { background:#e3f2fd; color:#1565c0; border-color:#90caf9; }
+    .radio-group input[type=radio]:checked ~ .lbl-p,
+    .radio-group input[type=radio].p:checked + span.lbl-p { outline:2px solid #2e7d32; }
+    label.lbl-p:has(input:checked),
+    label.lbl-a:has(input:checked),
+    label.lbl-pm:has(input:checked) { outline:2px solid currentColor; }
+    .sno { color:#888; font-size:13px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🎓 <span>AttendTrack</span></div>
+    <nav>
+      <a href="dashboard.html"><i>📊</i> <span>Dashboard</span></a>
+      <a href="students.html"><i>👥</i> <span>Students</span></a>
+      <a href="mark-attendance.html"><i>✅</i> <span>Mark Attendance</span></a>
+      <a href="reports.html"><i>📋</i> <span>Reports</span></a>
+      <a href="leave-approval.html"><i>📝</i> <span>Leave Approval</span></a>
+      <a href="parent-notify.html"><i>📨</i> <span>Parent Notify</span></a>
+      <a href="index.html" onclick="localStorage.clear()"><i>🚪</i> <span>Logout</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar"><h1>Mark Attendance</h1></div>
+
+    <!-- FILTERS -->
+    <div class="table-box" style="margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">Group</label>
+          <select id="selGroup" onchange="renderTable()" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+            <option value="">All Groups</option>
+            <option>CST-A</option><option>CST-B</option><option>CST-C</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">Subject</label>
+          <select id="selSubject" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+            <option>Data Structures</option><option>DBMS</option><option>OS</option>
+            <option>Networks</option><option>Software Engg</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">Date</label>
+          <input type="date" id="attDate" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success btn-sm" onclick="markAll('P')">✓ All Present</button>
+        <button class="btn btn-danger btn-sm" onclick="markAll('A')">✗ All Absent</button>
+        <button class="btn btn-outline btn-sm" onclick="markAll('PM')">📋 All Permission</button>
+      </div>
+    </div>
+
+    <!-- VERTICAL TABLE -->
+    <div class="table-box">
+      <table class="att-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Roll No</th>
+            <th>Student Name</th>
+            <th>Group</th>
+            <th>Mark Attendance</th>
+          </tr>
+        </thead>
+        <tbody id="attTableBody"></tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:20px;display:flex;gap:12px;">
+      <button class="btn btn-primary" onclick="saveAttendance()">💾 Save Attendance</button>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+<script>
+const attState = {};
+
+function renderTable() {
+  const grp = document.getElementById("selGroup").value;
+  const tbody = document.getElementById("attTableBody");
+  tbody.innerHTML = "";
+  const filtered = students.filter(s => !grp || s.group === grp);
+
+  filtered.forEach((s, idx) => {
+    if (!attState[s.id]) attState[s.id] = "P";
+    const v = attState[s.id];
+    tbody.innerHTML += `<tr>
+      <td class="sno">${idx + 1}</td>
+      <td><strong>${s.roll}</strong></td>
+      <td>${s.name}</td>
+      <td><span class="badge ok" style="font-size:11px;">${s.group}</span></td>
+      <td>
+        <div class="radio-group">
+          <label class="lbl-p">
+            <input type="radio" name="att_${s.id}" value="P" ${v==='P'?'checked':''} onchange="setAtt(${s.id},'P')"/>
+            <span>✓ Present</span>
+          </label>
+          <label class="lbl-a">
+            <input type="radio" name="att_${s.id}" value="A" ${v==='A'?'checked':''} onchange="setAtt(${s.id},'A')"/>
+            <span>✗ Absent</span>
+          </label>
+          <label class="lbl-pm">
+            <input type="radio" name="att_${s.id}" value="PM" ${v==='PM'?'checked':''} onchange="setAtt(${s.id},'PM')"/>
+            <span>📋 Permission</span>
+          </label>
+        </div>
+      </td>
+    </tr>`;
+  });
+}
+
+function setAtt(id, val) { attState[id] = val; }
+
+function markAll(val) {
+  const grp = document.getElementById("selGroup").value;
+  students.filter(s => !grp || s.group === grp).forEach(s => attState[s.id] = val);
+  renderTable();
+}
+
+function saveAttendance() {
+  // Apply approved leave requests as Permission automatically
+  window.leaveRequests.filter(r => r.status === "approved").forEach(r => {
+    const s = students.find(x => x.roll === r.roll);
+    if (s) attState[s.id] = "PM";
+  });
+  showToast("Attendance saved successfully! ✓");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("attDate").value = new Date().toISOString().split("T")[0];
+  renderTable();
+});
+</script>
+</body>
+</html>
